@@ -102,6 +102,15 @@ jobs:
             --key-pass env:APK_KEYSTORE_PASSWORD \
             --out "$output" "$aligned"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$output"
+          # Pin the maintainer's release certificate. A wrong or replaced
+          # keystore must not silently produce a distributable APK.
+          actual_cert_sha256="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$output" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          expected_cert_sha256="bf5cbab9bb18ccb2f84c807835edbf38e9fa78917bba0ab05667c5f58d5b2bf8"
+          if [[ "$actual_cert_sha256" != "$expected_cert_sha256" ]]; then
+            echo "::error::Signing certificate does not match the pinned public release certificate"
+            exit 1
+          fi
+          echo "PASS: Pinned release signing certificate verified"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$output" \
             | grep -F "package: name='dev.local.systemuicacheonly'"
           permissions="$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$output")"

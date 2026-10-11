@@ -40,6 +40,9 @@ Pixelの「システム UI → ストレージ」設定画面を**ワンタッ�
 - ActionsのデバッグAPKは実行ごとに署名が変わるため、同一アプリの更新時に旧版のアンインストールが必要になる場合があります。
 - [GitHub Releases](../../releases)に安定した署名のAPKを公開するためのワークフローも用意しています。**初回の署名鍵設定が完了するまで安定版Releaseはありません。**
 
+
+署名付きGitHub Releaseに使用する固定公開証明書： [公開証明書](certs/release-signing.pem)（SHA-256: `bf5cbab9bb18ccb2f84c807835edbf38e9fa78917bba0ab05667c5f58d5b2bf8`）。公開するAPKの署名はGitHub Actionsで照合します。
+
 ### ソースコード
 
 Java 17 / Android SDK 36。AndroidManifestに追加権限はなく、アクティビティ1個のみです。外部ランタイムライブラリはありません。使用する画面遷移は、Android設定アプリの APP_STORAGE_SETTINGS アクションおよび標準のアプリ情報設定アクションです。
@@ -81,6 +84,10 @@ A **one-tap shortcut to the System UI storage screen** on Google Pixel phones. I
 - **[GitHub Actions build](../../actions/workflows/build-apk.yml)** → successful run → Artifacts → Pixel-SystemUI-Cache-Shortcut-debug-APK → unzip and install.
 - Debug APKs are signed with ephemeral build keys and may not install over an older APK.
 - A stable, repeatably signed [release workflow](docs/RELEASING.md) is included; **no stable GitHub Release is available until the maintainer configures the signing key**.
+
+### Signing certificate
+
+The signed-release workflow pins the [public signing certificate](certs/release-signing.pem). Certificate SHA-256: `bf5cbab9bb18ccb2f84c807835edbf38e9fa78917bba0ab05667c5f58d5b2bf8`. APKs that do not match it are rejected during release.
 
 ### Development
 
