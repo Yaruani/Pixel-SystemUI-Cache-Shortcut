@@ -1,0 +1,100 @@
+name: Build Pixel System UI Cache Shortcut
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-apk.yml'
+      - 'app/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Java 17
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          gradle-version: '8.13'
+      - name: Configure Android SDK from hosted runner
+        run: |
+          set -euo pipefail
+          test -d "$ANDROID_HOME"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)"
+          fi
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0"
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt"
+      - name: Confirm permission-free shortcut design
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import xml.etree.ElementTree as ET
+
+          base = pathlib.Path("app/src/main")
+          xml = ET.parse(base / "AndroidManifest.xml").getroot()
+          ns = "{http://schemas.android.com/apk/res/android}"
+          assert not [node for node in xml if node.tag == "uses-permission"]
+          app = xml.find("application")
+          assert app is not None
+          assert not [n for n in app if n.tag in ("service", "receiver", "provider")]
+          activities = app.findall("activity")
+          assert len(activities) == 1
+          assert activities[0].get(ns + "name") == ".MainActivity"
+          srcs = list((base / "java").rglob("*.java"))
+          assert len(srcs) == 1, [str(p) for p in srcs]
+          text = srcs[0].read_text()
+          assert 'TARGET_PACKAGE = "com.android.systemui"' in text
+          assert 'APP_STORAGE_ACTION = "com.android.settings.APP_STORAGE_SETTINGS"' in text
+          assert 'Uri.fromParts("package", TARGET_PACKAGE, null)' in text
+          for forbidden in ("AccessibilityService", "performAction(", "dispatchGesture(",
+                            "pm clear", "ACTION_CLEAR_APP_CACHE", "deleteApplicationCacheFiles",
+                            "clearApplicationUserData", "forceStopPackage", "AlarmManager",
+                            "WorkManager"):
+              assert forbidden not in text, f"Forbidden operation: {forbidden}"
+          print("PASS: Fixed target, direct shortcut, zero permissions/services, no cache manipulation")
+          PY
+      - name: Build debug APK
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          aapt="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          apksigner="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -s "$apk"
+          "$aapt" dump badging "$apk" | grep -F "package: name='dev.local.systemuicacheonly'"
+          perms="$("$aapt" dump permissions "$apk")"
+          if printf '%s\n' "$perms" | grep -q uses-permission; then
+            printf '%s\n' "$perms"
+            exit 1
+          fi
+          "$apksigner" verify --verbose --print-certs "$apk"
+          (cd "$(dirname "$apk")" && sha256sum "$(basename "$apk")" > app-debug.apk.sha256)
+      - name: Upload APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Pixel-SystemUI-Cache-Shortcut-debug-APK
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
+          retention-days: 30
+          if-no-files-found: error

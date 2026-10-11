@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">System UI Cache Shortcut</string>
+    <string name="fallback_notice">Direct storage page unavailable. System UI app information was opened instead.</string>
+    <string name="open_failed">Unable to open System UI settings.</string>
+</resources>

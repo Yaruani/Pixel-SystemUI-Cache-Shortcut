@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">System UI キャッシュ画面</string>
+    <string name="fallback_notice">直接開けないため、System UIのアプリ情報を表示しました</string>
+    <string name="open_failed">System UIの設定画面を開けませんでした</string>
+</resources>
